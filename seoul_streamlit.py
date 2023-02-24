@@ -11,6 +11,7 @@ plt.rc('font', family='NanumGothic')
 from urllib.request import urlopen
 import json
 import plotly.express as px
+import seaborn as sns
 seoul_geo_url = "https://raw.githubusercontent.com/southkorea/seoul-maps/master/kostat/2013/json/seoul_municipalities_geo_simple.json"
 
 st.set_page_config(page_title="My Dashboard", page_icon=":bar_chart:", layout="wide")
@@ -147,6 +148,10 @@ def get_service_seoul_data(service_name, df):
     return df_temp
 
 # %%
+with st.expander("==== 업종 참고(펼쳐보기) ===="):
+    # 펼쳐진 내용 작성
+    st.write(df['서비스_업종_코드_명'].unique())
+    
 service_name = st.text_input(label="업종을 입력해 주세요", value="커피")
 surface_area = st.number_input(label="평수를 입력해 주세요", value=20)
 service_search = st.button("Confirm")
@@ -155,7 +160,7 @@ gu_name = st.text_input(label="구 이름을 입력해 주세요")
 gu_search = st.button("검색")
 
 row1_1, row1_2= st.columns([1, 1])
-row2_1, row2_2 = st.columns([1, 1])
+row2_1, row2_2, row2_3 = st.columns([1, 1,1])
 row3_1, row3_2 = st.columns([1, 1])
 row4_1, row4_2 = st.columns([1, 1])
 
@@ -173,136 +178,163 @@ if service_search:
                         projection="mercator", color_continuous_scale='Blues')
         fig.update_geos(fitbounds="locations", visible=False)
         fig.update_layout(title_text = f'{service_name} 업종 (매출-임대료) 비교_{surface_area}평 기준', 
-                          title_font_size = 20,  width=800, height=600)
+                          title_font_size = 20,  width=800, height=600, template='plotly_dark')
+    
         st.plotly_chart(fig)
     
     with row1_2:
         row1_2_1, row1_2_2= st.columns([1, 1])
-#         row1_2_3 = st.columns(2)
+
         
         with row1_2_1:
             df_seoul_sales = df_several[['서울_전체_매출', '서울_전체_점포수']]
-            df_gender = df_several[['남성_객단가', '여성_객단가']]
-            df_seoul_sales.columns = ['전체 매출합', '점포수']
+            df_gender = round(df_several[['남성_객단가', '여성_객단가']], -1)
+            df_seoul_sales.columns = ['전체 매출합(원)', '점포수(개)']
             df_seoul_sales = df_seoul_sales.T
             df_seoul_sales.columns = ['내용']
-            df_gender.index = ['객단가']
+            df_gender.index = ['객단가(원/인)']
             df_gender.columns = ['남성', '여성']
             
             st.dataframe(df_seoul_sales)
-            st.dataframe(df_gender)      
-        
-        with row1_2_2:
-                        
+            st.dataframe(df_gender)
+            
             df_gender_sales = df_several[['남성_매출합', '여성_매출합']]
             df_gender_sales.columns = ['남성', '여성']
             df_gender_sales = df_gender_sales.T
             
-            fig, ax = plt.subplots(figsize=(3, 3))
+            fig, ax = plt.subplots()
 
             labels = df_gender_sales.index
-            colors = ['#2c7fb8', '#cc5d21']
+            colors = sns.color_palette('Blues_r', 2)
             wedgeprops={'width': 0.7, 'edgecolor': 'w', 'linewidth': 5}
             ax.pie(df_gender_sales[0], labels=labels, autopct='%.1f%%', startangle=260, 
                    counterclock=False, colors=colors, wedgeprops=wedgeprops)
             plt.title('성별 매출 분포')
-            st.pyplot(fig)
+            st.pyplot(fig)  
+        
+        with row1_2_2:
+            st.write('hello')
+               
+    with row2_1:
+        tab1, tab2= st.tabs(['수익 top5 구' , '수익 하위 top 5 구'])
+        
+        with tab1:
+#    매출-임대료 top5 구
+            df_plt1 = df_sales.sort_values(by='매출-임대료', ascending=False).head()
+            plt.style.use('default')
+            plt.rcParams['figure.figsize'] = (7, 4)
+            plt.rc('font', family='NanumGothic')
+            plt.rcParams['font.size'] = 12
+            plt.style.use('dark_background')
+            colors = sns.color_palette('Blues_r', len(df_plt1['시군구']))
             
-        with st.container():
+            fig, ax1 = plt.subplots()
+
+            ax1.bar(df_plt1['시군구'], df_plt1['매출-임대료'], color=colors, alpha=0.7, width=0.2, label='매출-임대료')
+            ax1.axhline(df_sales['매출-임대료'].mean(),label='Mean', c='r', ls=':')
+
+            ax1.set_xlabel('시군구')
+            ax1.set_ylabel('매출-임대료 (원)')
+            ax1.tick_params(axis='both', direction='in')
+
+            ax2 = ax1.twinx()
+            ax2.plot(df_plt1['시군구'], df_plt1['평균 객단가'], '-s', color='white', markersize=4, linewidth=2, alpha=0.7, label='객단가')
+                # ax2.set_ylim(7000, 11000)
+            ax2.set_ylabel('객단가 (원/인)')
+            ax2.tick_params(axis='y', direction='in')
+
+            ax1.set_zorder(ax2.get_zorder() - 10)
+            ax1.patch.set_visible(False)
+
+            ax1.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2))
+            ax2.legend(loc='upper center', bbox_to_anchor=(0.85, -0.2))
+
+            st.pyplot(fig)
+
+        with tab2:
+            df_plt2 = df_sales.sort_values(by='매출-임대료', ascending=False).tail()
+            plt.style.use('default')
+            plt.rcParams['figure.figsize'] = (7, 4)
+            plt.rc('font', family='NanumGothic')
+            plt.style.use('dark_background')
+            plt.rcParams['font.size'] = 12
+            colors = sns.color_palette('Blues_r', len(df_plt2['시군구']))
+            fig, ax1 = plt.subplots()
+
+            ax1.bar(df_plt2['시군구'], df_plt2['매출-임대료'], color=colors, alpha=0.7, width=0.2, label='매출-임대료')
+            ax1.axhline(df_sales['매출-임대료'].mean(),label='Mean', c='r', ls=':')
+
+            ax1.set_xlabel('시군구')
+            ax1.set_ylabel('매출-임대료 (원)')
+            ax1.tick_params(axis='both', direction='in')
+
+            ax2 = ax1.twinx()
+            ax2.plot(df_plt2['시군구'], df_plt2['평균 객단가'], '-s', color='white', markersize=4, linewidth=2, alpha=0.7, label='객단가')
+                # ax2.set_ylim(7000, 11000)
+            ax2.set_ylabel('객단가 (원/인)')
+            ax2.tick_params(axis='y', direction='in')
+
+            ax1.set_zorder(ax2.get_zorder() - 10)
+            ax1.patch.set_visible(False)
+
+            ax1.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2))
+            ax2.legend(loc='upper center', bbox_to_anchor=(0.85, -0.2))
+
+            st.pyplot(fig)
+                
+    with row2_2:
+        tab1, tab2, tab3 = st.tabs(['분기별 매출', '요일별 매출' , '시간대별 매출'])
+        
+        with tab1:
             df_quarter = df_several[['서울_전체_매출_1분기', '서울_전체_매출_2분기', '서울_전체_매출_3분기', '서울_전체_매출_4분기']]
             df_quarter.columns = ['1분기', '2분기', '3분기','4분기']
             df_quarter = df_quarter.T
             df_quarter.columns = ['서울 전체 분기별 매출']
-            plt.rcParams['figure.figsize'] = (10, 4)
-                
-            fig, ax = plt.subplots(figsize=(6, 2)) ## Figure 생성 
+#             plt.rcParams['figure.figsize'] = (10, 4)
+            plt.style.use('dark_background')
+            colors = sns.color_palette('Blues_r', len(df_plt1.index))
+            fig, ax = plt.subplots() ## Figure 생성 
             # fig.set_facecolor('white') ## Figure 배경색 지정
             
 #             colors = sns.color_palette('Blues_r', len(df_quarter['서울 전체 분기별 매출'])) ## 바 차트 색상
  
-            ax.bar(df_quarter.index, df_quarter['서울 전체 분기별 매출'], color='#2c7fb8',  width=0.2) ## 바차트 출력
-            ax.plot(df_quarter.index, df_quarter['서울 전체 분기별 매출'], color='#150da3', linestyle='--', marker='o') ## 선 그래프 출력
-            
-            plt.title('분기별 매출 추이')
-            
+            ax.bar(df_quarter.index, df_quarter['서울 전체 분기별 매출'], color=colors,  width=0.2) ## 바차트 출력
+            ax.plot(df_quarter.index, df_quarter['서울 전체 분기별 매출'], color='white', linestyle='--', marker='o') ## 선 그래프 출력
+                        
             st.pyplot(fig)
-                   
-               
-    with row2_1:
-   
-        df_plt1 = df_sales.sort_values(by='매출-임대료', ascending=False).head()
-        plt.style.use('default')
-        plt.rcParams['figure.figsize'] = (7, 4)
-        plt.rc('font', family='NanumGothic')
-        plt.rcParams['font.size'] = 12
-        fig, ax1 = plt.subplots(figsize=(5, 2))
-
-        ax1.bar(df_plt1['시군구'], df_plt1['매출-임대료'], color='#2c7fb8', alpha=0.7, width=0.2, label='매출-임대료')
-        ax1.axhline(df_sales['매출-임대료'].mean(),label='Mean', c='r', ls=':')
-
-        ax1.set_xlabel('시군구')
-        ax1.set_ylabel('매출-임대료 (원)')
-        ax1.tick_params(axis='both', direction='in')
-
-        ax2 = ax1.twinx()
-        ax2.plot(df_plt1['시군구'], df_plt1['평균 객단가'], '-s', color='#150da3', markersize=4, linewidth=2, alpha=0.7, label='객단가')
-            # ax2.set_ylim(7000, 11000)
-        ax2.set_ylabel('객단가 (원/인)')
-        ax2.tick_params(axis='y', direction='in')
-
-        ax1.set_zorder(ax2.get_zorder() - 10)
-        ax1.patch.set_visible(False)
-
-        ax1.legend(loc='upper center')
-        ax2.legend(loc='upper right')
-
-        plt.title('수익 top5 구')
-        st.pyplot(fig)
-
-        
-        df_plt2 = df_sales.sort_values(by='매출-임대료', ascending=False).tail()
-        plt.style.use('default')
-        plt.rcParams['figure.figsize'] = (7, 4)
-        plt.rc('font', family='NanumGothic')
-        plt.rcParams['font.size'] = 12
-        fig, ax1 = plt.subplots(figsize=(6, 3))
-
-        ax1.bar(df_plt2['시군구'], df_plt2['매출-임대료'], color='#2c7fb8', alpha=0.7, width=0.2, label='매출-임대료')
-        ax1.axhline(df_sales['매출-임대료'].mean(),label='Mean', c='r', ls=':')
-
-        ax1.set_xlabel('시군구')
-        ax1.set_ylabel('매출-임대료 (원)')
-        ax1.tick_params(axis='both', direction='in')
-
-        ax2 = ax1.twinx()
-        ax2.plot(df_plt2['시군구'], df_plt2['평균 객단가'], '-s', color='#150da3', markersize=4, linewidth=2, alpha=0.7, label='객단가')
-            # ax2.set_ylim(7000, 11000)
-        ax2.set_ylabel('객단가 (원/인)')
-        ax2.tick_params(axis='y', direction='in')
-
-        ax1.set_zorder(ax2.get_zorder() - 10)
-        ax1.patch.set_visible(False)
-
-        ax1.legend(loc='upper center')
-        ax2.legend(loc='upper right')
-
-        plt.title('수익 하위 top 5 구')
-        st.pyplot(fig)
             
-    with row2_2:
-        
-        df_day = df_several[['월_매출합', '화_매출합', '수_매출합', '목_매출합', '금_매출합', '토_매출합', '일_매출합']]
-        df_day.columns = list('월화수목금토일')
-        df_day.index = ['매출']
-        df_day = df_day.T
-        fig, ax = plt.subplots(figsize=(6, 3))
-        ax.bar(df_day.index, df_day['매출'], color='#2c7fb8',  width=0.3) ## 바차트 출력
-        ax.plot(df_day.index,  df_day['매출'], color='#150da3', linestyle='--', marker='o') ## 선 그래프 출력
+        with tab2:
+            df_day = df_several[['월_매출합', '화_매출합', '수_매출합', '목_매출합', '금_매출합', '토_매출합', '일_매출합']]
+            df_day.columns = list('월화수목금토일')
+            df_day.index = ['매출']
+            df_day = df_day.T
             
-        plt.title('요일별 매출 추이')
-        st.pyplot(fig)
+            plt.style.use('dark_background')
+            colors = sns.color_palette('Blues_r', len(df_day.index))
+            
+            fig, ax = plt.subplots()
+            ax.bar(df_day.index, df_day['매출'], color=colors,  width=0.3) ## 바차트 출력
+            ax.plot(df_day.index,  df_day['매출'], color='white', linestyle='--', marker='o') ## 선 그래프 출력
+
+            st.pyplot(fig)
         
-    with row3_1:
+        with tab3:
+            df_hour = df_several[['00~06_매출합', '06~11_매출합', '11~14_매출합', '14~17_매출합', '17~21_매출합', '21~24_매출합']]
+            df_hour.columns = ['00~06', '06~11', '11~14', '14~17', '17~21', '21~24']
+            df_hour.index = ['매출']
+            df_hour = df_hour.T
+            
+            plt.style.use('dark_background')
+            colors = sns.color_palette('Blues_r', len(df_hour.index)) 
+            
+            fig, ax = plt.subplots()
+            ax.bar(df_hour.index, df_hour['매출'], color=colors,  width=0.3) ## 바차트 출력
+            ax.plot(df_hour.index,  df_hour['매출'], color='white', linestyle='--', marker='o') ## 선 그래프 출력
+
+            st.pyplot(fig)
+    
+    with row2_3:
+        
         df_age = df_several[['10대_매출합', '20대_매출합', '30대_매출합', '40대_매출합', '50대_매출합', '60대 이상_매출합']]
         df_age_unit_price = df_several[['10대_객단가', '20대_객단가', '30대_객단가', '40대_객단가', '50대_객단가', '60대 이상_객단가']] 
         cols = ['10대', '20대', '30대', '40대', '50대', '60대 이상']
@@ -315,46 +347,33 @@ if service_search:
         df_age['연령대별 객단가'] = df_age_unit_price.T['연령대별 객단가']
 
         plt.style.use('default')
-        plt.rcParams['figure.figsize'] = (5, 3)
+        colors = sns.color_palette('Blues_r', len(df_age.index))
+#         plt.rcParams['figure.figsize'] = (5, 3)
         plt.rc('font', family='NanumGothic')
+        plt.style.use('dark_background')
         plt.rcParams['font.size'] = 12
         fig, ax1 = plt.subplots()
 
-        ax1.bar(df_age.index, df_age['연령대별 매출'], color='#2c7fb8', alpha=0.7, width=0.2, label='매출')
+        ax1.bar(df_age.index, df_age['연령대별 매출'], color=colors, alpha=0.7, width=0.2, label='매출')
 
         ax1.set_xlabel('연령대')
         ax1.set_ylabel('매출 (원)')
         ax1.tick_params(axis='both', direction='in')
 
         ax2 = ax1.twinx()
-        ax2.plot(df_age.index, df_age['연령대별 객단가'], '-s', color='#150da3', markersize=4, linewidth=2, alpha=0.7, label='객단가')
-        # ax2.set_ylim(7000, 11000)
+        ax2.plot(df_age.index, df_age['연령대별 객단가'], '-s', color='white', markersize=4, linewidth=2, alpha=0.7, label='객단가')
         ax2.set_ylabel('객단가 (원/인)')
         ax2.tick_params(axis='y', direction='in')
 
         ax1.set_zorder(ax2.get_zorder() - 10)
         ax1.patch.set_visible(False)
 
-        ax1.legend(loc='upper center')
-        ax2.legend(loc='upper right')
+        ax1.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2))
+        ax2.legend(loc='upper center', bbox_to_anchor=(0.85, -0.2))
 
         plt.title('연령대별 매출 추이')
         st.pyplot(fig)
-    
-    with row3_2:
-        df_hour = df_several[['00~06_매출합', '06~11_매출합', '11~14_매출합', '14~17_매출합', '17~21_매출합', '21~24_매출합']]
-        df_hour.columns = ['00~06', '06~11', '11~14', '14~17', '17~21', '21~24']
-        df_hour.index = ['매출']
-        df_hour = df_hour.T
 
-        fig, ax = plt.subplots()
-        ax.bar(df_hour.index, df_hour['매출'], color='#2c7fb8',  width=0.3) ## 바차트 출력
-        ax.plot(df_hour.index,  df_hour['매출'], color='#150da3', linestyle='--', marker='o') ## 선 그래프 출력
-
-        plt.title('시간대별 매출 추이')
-        st.pyplot(fig)
-
-    
 
 # %%
 
